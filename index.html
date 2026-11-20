@@ -645,6 +645,11 @@ body.admin .homeCard.adminOnly{display:flex!important}
 /* safe-top-fix : laisser la place à la barre d'état de l'iPad (heure, batterie) */
 header.top{padding-top:calc(10px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 @media (display-mode: standalone){header.top{padding-top:max(30px,calc(10px + env(safe-area-inset-top,0px)))}}
+html.standalone header.top{padding-top:max(30px,calc(10px + env(safe-area-inset-top,0px)))!important}
+#appVer{position:fixed;right:max(8px,env(safe-area-inset-right,0px));bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:400;font-size:11px;font-weight:600;color:#8a8a8c;background:rgba(255,255,255,.75);border-radius:999px;padding:2px 8px;pointer-events:none;font-variant-numeric:tabular-nums}
+body.mode-home #appVer,body.locked #appVer{background:rgba(0,0,0,.5);color:#9e9ea0}
+body.training #appVer{bottom:calc(44px + env(safe-area-inset-bottom,0px))}
+.zoom{bottom:calc(30px + env(safe-area-inset-bottom,0px))}
 #needFile,#login{padding-top:max(20px,env(safe-area-inset-top,0px))}
 #trainBar{padding-bottom:max(6px,env(safe-area-inset-bottom,0px))}
 </style>
@@ -738,11 +743,13 @@ header.top{padding-top:calc(10px + env(safe-area-inset-top,0px));padding-left:ma
 </main>
 <div id="trainBar">🎓 Mode formation — rien n'est enregistré <button class="btn" id="btnTrainOff">Quitter</button></div>
 <div id="wipe"><i class="w1"></i><i class="w2"><b></b></i></div>
+<div id="appVer">v1.1</div>
 <dialog id="dlg"></dialog>
 <div id="toast"></div>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
 <script>
+if(window.navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches))document.documentElement.classList.add('standalone');
 window.onerror=function(m,src,l){var e=document.getElementById('nojsErr');if(e&&!document.body.classList.contains('ready'))e.textContent='Erreur : '+m+' (ligne '+l+')'};
 </script>
 <script>
