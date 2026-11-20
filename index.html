@@ -646,6 +646,13 @@ body.admin .homeCard.adminOnly{display:flex!important}
 header.top{padding-top:calc(10px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
 html.standalone header.top,html.touch header.top{padding-top:calc(12px + env(safe-area-inset-top,0px))!important}
+#boxRemind{display:inline-flex;align-items:center;gap:10px;margin:-14px 0 26px;padding:9px 16px;border-radius:999px;border:1px solid #333;background:#161616;color:#bdbdbf;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+#boxRemind[hidden]{display:none}
+#boxRemind .brDot{width:8px;height:8px;border-radius:50%;background:#3fbf6a;flex:none}
+#boxRemind.late{border-color:#FA5400;color:#fff;background:rgba(250,84,0,.14)}
+#boxRemind.late .brDot{background:#FA5400;animation:brPulse 1.6s infinite}
+#boxRemind b{color:#FA5400;font-weight:700}
+@keyframes brPulse{50%{opacity:.35}}
 #appVer{position:fixed;right:max(8px,env(safe-area-inset-right,0px));bottom:max(4px,env(safe-area-inset-bottom,0px));z-index:400;font-size:11px;font-weight:600;color:#8a8a8c;background:rgba(255,255,255,.75);border-radius:999px;padding:2px 8px;pointer-events:none;font-variant-numeric:tabular-nums}
 body.mode-home #appVer,body.locked #appVer{background:rgba(0,0,0,.5);color:#9e9ea0}
 body.training #appVer{bottom:calc(44px + env(safe-area-inset-bottom,0px))}
@@ -693,6 +700,7 @@ html.touch .homeIn{padding-top:clamp(36px,8vh,80px)}
     <div class="homeIn">
       <div class="homeHead"><div class="eyebrow">Rayon</div><h1>APP<span class="dotO">.</span></h1>
 </div>
+      <button id="boxRemind" type="button" hidden></button>
       <div class="homeGrid">
         <button class="homeCard" data-go="plan">
            <span class="hcIcon">▦</span>
@@ -748,7 +756,7 @@ html.touch .homeIn{padding-top:clamp(36px,8vh,80px)}
 </main>
 <div id="trainBar">🎓 Mode formation — rien n'est enregistré <button class="btn" id="btnTrainOff">Quitter</button></div>
 <div id="wipe"><i class="w1"></i><i class="w2"><b></b></i></div>
-<div id="appVer">v1.5</div>
+<div id="appVer">v1.6</div>
 <dialog id="dlg"></dialog>
 <div id="toast"></div>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
@@ -1918,6 +1926,7 @@ function setMode(m,fromHash){
   if(m==='stats'&&!isAdmin())m='home';
   if(!MODES.includes(m))m='home';
   mode=m;MODES.forEach(x=>document.body.classList.remove('mode-'+x));document.body.classList.add('mode-'+m);
+  if(m==='home')updateBoxRemind();
   paForm=false;paPick=null;paAddOpen=false;paMove=false;prioEdit=false;
   if(m==='pa-create'&&!paCreateDate)paCreateDate=addDays(dayStr(),1);
   if(m==='pa-refill')paRefillDate=defaultRefillDate();
@@ -2199,7 +2208,15 @@ function statusInfo(){
   if(meta.dirty||box.saving)return['warn','En attente d\'enregistrement…',null];
   return['ok','Enregistré dans Box'+(meta.lastSaved?' à '+fmtT(meta.lastSaved):''),null];
 }
-function updateStatus(){const[k,t,act]=statusInfo();const b=$('#status');b.className='status '+k;b.firstElementChild.textContent=t;b.dataset.act=act||'';b.title=t;updateBanner()}
+function updateStatus(){const[k,t,act]=statusInfo();const b=$('#status');b.className='status '+k;b.firstElementChild.textContent=t;b.dataset.act=act||'';b.title=t;updateBanner();updateBoxRemind()}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('#boxRemind'))exportToBox()});
+function updateBoxRemind(){const el=$('#boxRemind');if(!el)return;
+  if(training||!hasPlan()||!user){el.hidden=true;return}
+  const ls=meta.lastSent;let txt,late;
+  if(!ls){txt='Jamais envoyé dans Box depuis cet appareil';late=true}
+  else{const d=Math.floor((Date.now()-ls)/864e5);txt='Dernier envoi dans Box : '+(d<=0?"aujourd'hui":d===1?'hier':'il y a '+d+' jours');late=d>=7}
+  el.hidden=false;el.className=late?'late':'';el.innerHTML='<span class="brDot"></span>'+txt+(late?'<b>Envoyer maintenant →</b>':'');}
+
 $('#status').onclick=()=>{const a=$('#status').dataset.act;
   ({connect:chooseFolder,perm:requestPerm,conflict:showConflict,retry:()=>{box.error=null;scheduleSave(0)},take:takeOver,openfile:openFromBox,export:exportToBox}[a]||(()=>{}))()};
 $('#btnUndo').onclick=undo;$('#btnRedo').onclick=redo;
@@ -2360,7 +2377,7 @@ async function runSave(){
     out.updatedAt=new Date().toISOString();out.updatedBy=user||'(inconnu)';
     await writeJSON(box.dir,FILE_PLAN,out);
     state.revision=out.revision;state.updatedAt=out.updatedAt;state.updatedBy=out.updatedBy;
-    meta.baseRevision=out.revision;meta.lastSaved=Date.now();if(editSeq===seq)meta.dirty=false;
+    meta.baseRevision=out.revision;meta.lastSaved=Date.now();meta.lastSent=Date.now();if(editSeq===seq)meta.dirty=false;
     box.error=null;await persistLocal();await flushJournal();
     if(Date.now()-box.lastBeat>HEARTBEAT_MS/2)await writeLock();
   }catch(e){handleFsError(e)}
@@ -2438,7 +2455,7 @@ async function exportToBox(){
   const fileName=FILE_PLAN;const blob=new Blob([JSON.stringify(out,null,1)],{type:'application/json'});
   const file=new File([blob],fileName,{type:'application/json'});
   const commitSent=()=>{state.revision=out.revision;state.updatedAt=out.updatedAt;state.updatedBy=out.updatedBy;meta.baseRevision=out.revision;
-    meta.dirty=false;meta.lastSaved=Date.now();meta.fileName=fileName;persistLocal();updateStatus()};
+    meta.dirty=false;meta.lastSaved=Date.now();meta.lastSent=Date.now();meta.fileName=fileName;persistLocal();updateStatus()};
   try{
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       await navigator.share({files:[file],title:'Plan rayon APP'});commitSent();
